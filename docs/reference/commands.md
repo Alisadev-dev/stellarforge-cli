@@ -34,7 +34,7 @@ Help exits successfully with code `0`.
 stellarforge --version
 ```
 
-The version comes from installed package metadata. No registry request or subprocess is used.
+The version comes from the installed package's `package.json`. The root command name (from the single `bin` entry) and description match the same file; no registry request or subprocess is used, and no duplicate CLI-side constant is kept.
 
 Unknown commands, unknown options, and missing required positional arguments are usage failures and exit with code `2`.
 
