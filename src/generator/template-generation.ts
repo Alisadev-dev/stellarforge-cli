@@ -17,8 +17,20 @@ import type { GenerationContext, ProjectGenerationResult } from './types.js';
 
 const SUBSTITUTION_TOKEN = /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g;
 
+/** Maximum number of files a template may contain (25× the largest bundled template). */
+export const MAX_TEMPLATE_FILE_COUNT = 256;
+/** Maximum aggregate bytes of regular files (~55× the largest bundled template). */
+export const MAX_TEMPLATE_TOTAL_BYTES = 1024 * 1024;
+/** Maximum bytes of a single template file (~46× the largest bundled template file). */
+export const MAX_TEMPLATE_FILE_BYTES = 256 * 1024;
+
 export interface TemplateGenerationOptions {
   readonly templateRoot: string;
+}
+
+interface TemplateBudget {
+  readonly fileCount: number;
+  readonly totalBytes: number;
 }
 
 function isWithin(root: string, candidate: string): boolean {
@@ -63,6 +75,96 @@ function renderText(
 
 function isBinary(content: Buffer): boolean {
   return content.includes(0);
+}
+
+/**
+ * Measures the template tree before any file is written. Exceeding a documented
+ * limit fails with a safe aggregate message that never embeds local paths or
+ * entry names. Directory payload bytes are never counted — they are
+ * platform-dependent; only regular files are measured.
+ */
+function measureTemplateTree(templateRoot: string): TemplateBudget {
+  let fileCount = 0;
+  let totalBytes = 0;
+
+  const measure = (relativeDirectory: string): void => {
+    const sourceDirectory = resolve(templateRoot, relativeDirectory);
+    const entries = readdirSync(sourceDirectory, { withFileTypes: true }).sort(
+      (a, b) => {
+        if (a.name < b.name) return -1;
+        if (a.name > b.name) return 1;
+        return 0;
+      },
+    );
+
+    for (const entry of entries) {
+      assertSafeEntryName(entry.name);
+
+      const relativePath = join(relativeDirectory, entry.name);
+      const sourcePath = resolve(templateRoot, relativePath);
+
+      if (!isWithin(templateRoot, sourcePath)) {
+        throw new ValidationCliError(
+          'Template file path escapes the trusted project root.',
+        );
+      }
+
+      const stats = lstatSync(sourcePath);
+
+      if (stats.isSymbolicLink()) {
+        throw new ValidationCliError(
+          'Template symbolic links are not supported.',
+        );
+      }
+
+      if (stats.isDirectory()) {
+        measure(relativePath);
+        continue;
+      }
+
+      if (!stats.isFile()) {
+        throw new ValidationCliError(
+          'Template contains an unsupported filesystem entry.',
+        );
+      }
+
+      fileCount += 1;
+      totalBytes += stats.size;
+
+      if (fileCount > MAX_TEMPLATE_FILE_COUNT) {
+        throw new ValidationCliError(
+          `Template exceeds the ${MAX_TEMPLATE_FILE_COUNT}-file generation limit (found more than ${MAX_TEMPLATE_FILE_COUNT} files).`,
+        );
+      }
+
+      if (stats.size > MAX_TEMPLATE_FILE_BYTES) {
+        throw new ValidationCliError(
+          `Template contains a file larger than the ${MAX_TEMPLATE_FILE_BYTES}-byte per-file limit.`,
+        );
+      }
+
+      if (totalBytes > MAX_TEMPLATE_TOTAL_BYTES) {
+        throw new ValidationCliError(
+          `Template exceeds the ${MAX_TEMPLATE_TOTAL_BYTES}-byte generation limit.`,
+        );
+      }
+    }
+  };
+
+  measure('.');
+
+  return { fileCount, totalBytes };
+}
+
+/**
+ * Pre-flight guardrail: reject templates that exceed the documented budget
+ * before any file is read, staged, or promoted.
+ */
+function assertTemplateBudget(templateRoot: string): void {
+  // Bounds are intentionally generous relative to the bundled template
+  // inventory (four templates, tens of files, ~kilobytes each) yet small
+  // enough to stop accidentally huge or hostile template trees.
+  measureTemplateTree(templateRoot);
 }
 
 function copyTemplateTree(
@@ -201,6 +303,8 @@ export function generateProjectFromTemplate(
       'Template source must not be a symbolic link.',
     );
   }
+
+  assertTemplateBudget(templateRoot);
 
   assertDestinationContainment(root, destination);
 
