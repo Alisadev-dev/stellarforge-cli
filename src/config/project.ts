@@ -1,3 +1,4 @@
+import { TextDecoder } from 'node:util';
 import { existsSync, lstatSync, readFileSync, type Stats } from 'node:fs';
 import { resolve } from 'node:path';
 import { ValidationCliError } from '../errors/errors.js';
@@ -145,6 +146,24 @@ function decodeJsonString(
 }
 
 const JSON_NUMBER_PREFIX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
+
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+
+/**
+ * Decodes a config file strictly as UTF-8. Invalid byte sequences are
+ * rejected before JSON parsing so that corruption is never silently replaced
+ * with U+FFFD and never echoes raw bytes in the error message.
+ */
+function decodeUtf8(bytes: Buffer): string {
+  try {
+    return utf8Decoder.decode(bytes);
+  } catch (cause) {
+    throw new ValidationCliError(
+      'stellarforge.config.json is not valid UTF-8.',
+      { cause },
+    );
+  }
+}
 
 function scanValue(raw: string, index: number): number {
   const position = skipWhitespace(raw, index);
@@ -329,12 +348,24 @@ export function loadProjectConfig(cwd: string): StellarForgeConfig | undefined {
   let text: string;
 
   try {
-    text = readFileSync(configPath, 'utf8');
+    const bytes = readFileSync(configPath);
+    text = decodeUtf8(bytes);
   } catch (error) {
+    if (error instanceof ValidationCliError) {
+      throw error;
+    }
+
     throw new ValidationCliError(
       'Unable to inspect stellarforge.config.json.',
       { cause: error },
     );
+  }
+
+  if (text.charCodeAt(0) === 0xfeff) {
+    // Tolerate exactly one leading UTF-8 BOM (Windows editor convention).
+    // A second BOM character is left in place and fails JSON parsing with the
+    // stable malformed-JSON error.
+    text = text.slice(1);
   }
 
   assertNoDuplicateJsonKeys(text);
