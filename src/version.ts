@@ -79,12 +79,14 @@ export function resolveCliMetadata(
       !Array.isArray(bin)
     ) {
       const entries = Object.entries(bin as Record<string, unknown>);
+      const first = entries[0];
       if (
         entries.length === 1 &&
-        typeof entries[0][0] === 'string' &&
-        entries[0][0].trim().length > 0
+        first !== undefined &&
+        typeof first[0] === 'string' &&
+        first[0].trim().length > 0
       ) {
-        executable = entries[0][0];
+        executable = first[0];
       }
     }
   }
