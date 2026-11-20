@@ -174,7 +174,7 @@ describe('public documentation link integrity (SW-203)', () => {
 
     for (const raw of headings.split(/\r?\n/)) {
       const match = raw.trimEnd().match(/^(#{1,6})\s+(.*)$/);
-      if (!match) {
+      if (!match || !match[2]) {
         continue;
       }
 
@@ -262,7 +262,7 @@ describe('public documentation link integrity (SW-203)', () => {
           continue;
         }
 
-        const [pathPart, anchor] = target.split('#', 2);
+        const [pathPart = '', anchor] = target.split('#', 2);
 
         if (pathPart === '') {
           if (anchor && !anchorsFor(normalized).has(anchor)) {
