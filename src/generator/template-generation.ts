@@ -420,20 +420,6 @@ export function generateProjectFromTemplate(
       },
     );
 
-    // Provenance marker: record only the template identifier and generator
-    // version — never user, host, path, or environment information. Kept
-    // byte-stable across runs except for the version value itself.
-    const marker = {
-      generator: GENERATOR_PACKAGE_NAME,
-      template: context.template.templateId,
-      version: options.generatorVersion ?? resolveCliVersion(),
-    };
-    writeFileSync(
-      join(stagingRoot, GENERATED_MARKER_FILENAME),
-      `${JSON.stringify(marker, null, 2)}\n`,
-      'utf8',
-    );
-
     // Re-validate immediately before the mutating write phase. The checks
     // above can be invalidated by a concurrent destination replacement while
     // copyTemplateTree was still running (it only writes into the unrelated
@@ -469,6 +455,22 @@ export function generateProjectFromTemplate(
       rmdirSync(destination);
       removedExistingDestination = true;
     }
+
+    // Provenance marker: record only the template identifier and generator
+    // version — never user, host, path, or environment information. Kept
+    // byte-stable across runs except for the version value itself. Written
+    // after final destination safety checks so ancestor-swap races fail as
+    // containment/validation errors instead of raw filesystem errors.
+    const marker = {
+      generator: GENERATOR_PACKAGE_NAME,
+      template: context.template.templateId,
+      version: options.generatorVersion ?? resolveCliVersion(),
+    };
+    writeFileSync(
+      join(stagingRoot, GENERATED_MARKER_FILENAME),
+      `${JSON.stringify(marker, null, 2)}\n`,
+      'utf8',
+    );
 
     renameSync(stagingRoot, destination);
   } catch (error) {
