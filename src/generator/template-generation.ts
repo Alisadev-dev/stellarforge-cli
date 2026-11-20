@@ -17,6 +17,15 @@ import type { GenerationContext, ProjectGenerationResult } from './types.js';
 
 const SUBSTITUTION_TOKEN = /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g;
 
+// npm-packlist always excludes .gitignore files from published packages,
+// regardless of the package.json files field. Template gitignore files are
+// therefore stored without the leading dot so they survive npm pack. This
+// map restores the intended filename when the file is written to the
+// generated project.
+const DOTFILE_REMAP: Readonly<Record<string, string>> = {
+  gitignore: '.gitignore',
+};
+
 export interface TemplateGenerationOptions {
   readonly templateRoot: string;
 }
@@ -83,9 +92,11 @@ function copyTemplateTree(
   for (const entry of entries) {
     assertSafeEntryName(entry.name);
 
+    const destinationName = DOTFILE_REMAP[entry.name] ?? entry.name;
     const relativePath = join(relativeDirectory, entry.name);
+    const destinationRelativePath = join(relativeDirectory, destinationName);
     const sourcePath = resolve(templateRoot, relativePath);
-    const destinationPath = resolve(stagingRoot, relativePath);
+    const destinationPath = resolve(stagingRoot, destinationRelativePath);
 
     if (
       !isWithin(templateRoot, sourcePath) ||
