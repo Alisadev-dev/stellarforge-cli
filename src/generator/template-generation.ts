@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { ValidationCliError } from '../errors/errors.js';
+import { resolveCliVersion } from '../version.js';
 import type {
   GenerationContext,
   ProjectGenerationPreview,
@@ -31,6 +32,11 @@ export const MAX_TEMPLATE_FILE_BYTES = 256 * 1024;
 
 export interface TemplateGenerationOptions {
   readonly templateRoot: string;
+  /**
+   * Overrides the marker's generator version (defaults to the installed CLI
+   * version from package metadata). Generation otherwise stays deterministic.
+   */
+  readonly generatorVersion?: string | undefined;
   readonly dryRun?: boolean;
 }
 
@@ -412,6 +418,20 @@ export function generateProjectFromTemplate(
 
         mkdirSync(destinationPath, { recursive: false });
       },
+    );
+
+    // Provenance marker: record only the template identifier and generator
+    // version — never user, host, path, or environment information. Kept
+    // byte-stable across runs except for the version value itself.
+    const marker = {
+      generator: GENERATOR_PACKAGE_NAME,
+      template: context.template.templateId,
+      version: options.generatorVersion ?? resolveCliVersion(),
+    };
+    writeFileSync(
+      join(stagingRoot, GENERATED_MARKER_FILENAME),
+      `${JSON.stringify(marker, null, 2)}\n`,
+      'utf8',
     );
 
     // Re-validate immediately before the mutating write phase. The checks

@@ -34,7 +34,7 @@ function loadPackageMetadata(): unknown {
  * throws {@link CliVersionResolutionError} when the manifest is unusable.
  */
 export function resolveCliMetadata(
-  loader: () => unknown = loadPackageMetadata
+  loader: () => unknown = loadPackageMetadata,
 ): CliPackageMetadata {
   let metadata: unknown;
 
@@ -54,9 +54,11 @@ export function resolveCliMetadata(
     throw new CliVersionResolutionError();
   }
 
-  if (!('description' in metadata) ||
-      typeof metadata.description !== 'string' ||
-      metadata.description.trim().length === 0) {
+  if (
+    !('description' in metadata) ||
+    typeof metadata.description !== 'string' ||
+    metadata.description.trim().length === 0
+  ) {
     throw new CliVersionResolutionError();
   }
 
@@ -73,11 +75,7 @@ export function resolveCliMetadata(
           ? metadata.name
           : '';
       executable = name.startsWith('@') ? name.split('/').pop() : name;
-    } else if (
-      bin !== null &&
-      typeof bin === 'object' &&
-      !Array.isArray(bin)
-    ) {
+    } else if (bin !== null && typeof bin === 'object' && !Array.isArray(bin)) {
       const entries = Object.entries(bin as Record<string, unknown>);
       const first = entries[0];
       if (

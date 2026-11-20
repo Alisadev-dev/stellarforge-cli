@@ -23,7 +23,11 @@ const BIN_KEY = Object.keys(packageJson.bin)[0];
 describe('CLI version resolution', () => {
   it('returns the package metadata version', () => {
     expect(
-      resolveCliVersion(() => ({ version: '1.2.3', description: 'd', bin: { x: 'd' } })),
+      resolveCliVersion(() => ({
+        version: '1.2.3',
+        description: 'd',
+        bin: { x: 'd' },
+      })),
     ).toBe('1.2.3');
   });
 
@@ -80,7 +84,9 @@ describe('root command metadata parity', () => {
   });
 
   it('uses the manifest description, not a stale hard-coded string', () => {
-    expect(createRootCommand('9.9.9').description()).toBe(packageJson.description);
+    expect(createRootCommand('9.9.9').description()).toBe(
+      packageJson.description,
+    );
   });
 
   it('uses the manifest description in global help', () => {

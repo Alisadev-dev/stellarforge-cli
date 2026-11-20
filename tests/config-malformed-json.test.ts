@@ -123,7 +123,8 @@ describe('configuration duplicate-key rejection (SW-216)', () => {
 
       expect(() => loadProjectConfig(root)).toThrow(/duplicate key/);
       expect(() => loadProjectConfig(root)).toThrow(ValidationCliError);
-    }));
+    }),
+  );
 
   it('rejects duplicates even when both values are identical', () =>
     withTempDirectory((root) => {
@@ -211,7 +212,11 @@ describe('configuration duplicate-key rejection (SW-216)', () => {
     withTempDirectory((root) => {
       writeFileSync(
         join(root, PROJECT_CONFIG_FILENAME),
-        JSON.stringify({ version: 1, network: 'testnet', identity: 'deployer' }),
+        JSON.stringify({
+          version: 1,
+          network: 'testnet',
+          identity: 'deployer',
+        }),
       );
 
       expect(loadProjectConfig(root)).toEqual({
@@ -227,19 +232,41 @@ describe('invalid UTF-8 bytes in the project configuration (SW-218)', () => {
   it.each([
     { name: 'stray continuation byte', bytes: [0x80] },
     { name: 'lone 0xFF lead byte', bytes: [0xff] },
-    { name: 'invalid byte inside an ASCII string', bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x22, 0x74, 0x65, 0x80, 0x73, 0x74, 0x22, 0x7d] },
-    { name: 'truncated 3-byte sequence', bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0x22, 0xe2, 0x82] },
-    { name: 'truncated 2-byte sequence', bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xc3] },
-    { name: 'overlong encoding', bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xc0, 0xaf] },
-    { name: 'encoded surrogate', bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xed, 0xa0, 0x80] },
-    { name: 'stray continuation among ASCII', bytes: [0x7b, 0x22, 0x41, 0x80, 0x42, 0x22, 0x7d] },
+    {
+      name: 'invalid byte inside an ASCII string',
+      bytes: [
+        0x7b, 0x22, 0x76, 0x22, 0x3a, 0x22, 0x74, 0x65, 0x80, 0x73, 0x74, 0x22,
+        0x7d,
+      ],
+    },
+    {
+      name: 'truncated 3-byte sequence',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0x22, 0xe2, 0x82],
+    },
+    {
+      name: 'truncated 2-byte sequence',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xc3],
+    },
+    {
+      name: 'overlong encoding',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xc0, 0xaf],
+    },
+    {
+      name: 'encoded surrogate',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xed, 0xa0, 0x80],
+    },
+    {
+      name: 'stray continuation among ASCII',
+      bytes: [0x7b, 0x22, 0x41, 0x80, 0x42, 0x22, 0x7d],
+    },
   ])('rejects %s before JSON parsing', ({ bytes }) =>
     withTempDirectory((root) => {
       writeFileSync(join(root, PROJECT_CONFIG_FILENAME), Buffer.from(bytes));
 
       expect(() => loadProjectConfig(root)).toThrow(INVALID_UTF8_MESSAGE);
       expect(() => loadProjectConfig(root)).toThrow(ValidationCliError);
-    }));
+    }),
+  );
 
   it('keeps the malformed-JSON message stable for UTF-8-valid content', () =>
     withTempDirectory((root) => {
@@ -297,7 +324,11 @@ describe('UTF-8 BOM handling in the project configuration (SW-217)', () => {
         Buffer.concat([
           bom,
           Buffer.from(
-            JSON.stringify({ version: 1, network: 'testnet', identity: 'deployer' }),
+            JSON.stringify({
+              version: 1,
+              network: 'testnet',
+              identity: 'deployer',
+            }),
             'utf8',
           ),
         ]),

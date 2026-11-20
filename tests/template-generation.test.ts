@@ -245,7 +245,10 @@ describe('template generation budget limits (SW-199)', () => {
       mkdirSync(templateRoot, { recursive: true });
       // 9 files of 128 KiB comfortably exceed the 1 MiB aggregate limit.
       for (let i = 0; i < 9; i++) {
-        writeFileSync(join(templateRoot, `chunk-${i}.bin`), 'a'.repeat(128 * 1024));
+        writeFileSync(
+          join(templateRoot, `chunk-${i}.bin`),
+          'a'.repeat(128 * 1024),
+        );
       }
 
       expect(() =>
@@ -260,7 +263,10 @@ describe('template generation budget limits (SW-199)', () => {
       mkdirSync(templateRoot, { recursive: true });
       // 8 files of exactly 128 KiB = 1 MiB exactly.
       for (let i = 0; i < 8; i++) {
-        writeFileSync(join(templateRoot, `chunk-${i}.bin`), 'a'.repeat(128 * 1024));
+        writeFileSync(
+          join(templateRoot, `chunk-${i}.bin`),
+          'a'.repeat(128 * 1024),
+        );
       }
 
       expect(() =>
