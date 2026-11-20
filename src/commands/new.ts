@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { ScaffoldingCancelledCliError } from '../errors/errors.js';
 import { orchestrateProjectGeneration } from '../generator/orchestrator.js';
 import { generateProjectFromTemplate } from '../generator/template-generation.js';
 import { selectTemplate } from '../generator/template-registry.js';
@@ -32,6 +33,9 @@ function createDefaultServices(): ProjectGeneratorServices {
         ...(generationOptions?.dryRun === undefined
           ? {}
           : { dryRun: generationOptions.dryRun }),
+        ...(generationOptions?.isCancelled === undefined
+          ? {}
+          : { isCancelled: generationOptions.isCancelled }),
       });
     },
   };
@@ -51,36 +55,56 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
     )
     .option('--dry-run', 'Preview generated files without writing to disk.')
     .action((projectName: string, flags: NewCommandFlags) => {
-      const result = orchestrateProjectGeneration(
-        {
-          projectName,
-          cwd: cwd(),
-          ...(flags.template === undefined
-            ? {}
-            : { templateId: flags.template }),
-        },
-        services,
-        {
-          ...(flags.dryRun === undefined ? {} : { dryRun: flags.dryRun }),
-        },
-      );
+      let cancelled = false;
+      const onSigint = (): void => {
+        cancelled = true;
+      };
 
-      if ('dryRun' in result) {
-        output.info(
-          `Preview for ${result.templateId} at ${result.destination}:`,
+      process.on('SIGINT', onSigint);
+
+      try {
+        const result = orchestrateProjectGeneration(
+          {
+            projectName,
+            cwd: cwd(),
+            ...(flags.template === undefined
+              ? {}
+              : { templateId: flags.template }),
+          },
+          services,
+          {
+            ...(flags.dryRun === undefined ? {} : { dryRun: flags.dryRun }),
+            isCancelled: () => cancelled,
+          },
         );
-        output.info('Files to add:');
-        for (const file of result.files) {
-          output.info(`  ${file.path}`);
-          for (const substitution of file.substitutions) {
-            output.info(`    ${substitution}`);
-          }
-        }
-        return;
-      }
 
-      output.success(
-        `Created ${result.projectName} from ${result.templateId} at ${result.destination}.`,
-      );
+        if (cancelled) {
+          throw new ScaffoldingCancelledCliError();
+        }
+
+        if ('dryRun' in result) {
+          output.info(
+            `Preview for ${result.templateId} at ${result.destination}:`,
+          );
+          output.info('Files to add:');
+          for (const file of result.files) {
+            output.info(`  ${file.path}`);
+            for (const substitution of file.substitutions) {
+              output.info(`    ${substitution}`);
+            }
+          }
+          return;
+        }
+
+        if (cancelled) {
+          throw new ScaffoldingCancelledCliError();
+        }
+
+        output.success(
+          `Created ${result.projectName} from ${result.templateId} at ${result.destination}.`,
+        );
+      } finally {
+        process.removeListener('SIGINT', onSigint);
+      }
     });
 }
