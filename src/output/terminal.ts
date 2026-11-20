@@ -53,6 +53,13 @@ function isTerminalControlCharacter(code: number): boolean {
   );
 }
 
+function isBidiControlCharacter(code: number): boolean {
+  return (
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
+  );
+}
+
 function consumeCsiSequence(message: string, startIndex: number): number {
   let index = startIndex;
   const limit = Math.min(message.length, startIndex + MAX_CONTROL_SEQUENCE_LENGTH);
@@ -159,6 +166,11 @@ export function sanitizeTerminalText(message: string): string {
     }
 
     if (isTerminalControlCharacter(code)) {
+      index += 1;
+      continue;
+    }
+
+    if (isBidiControlCharacter(code)) {
       index += 1;
       continue;
     }
