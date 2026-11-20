@@ -42,3 +42,7 @@ The starter defaults to Stellar Testnet:
 Override the public network endpoints with `STELLAR_HORIZON_URL`, `STELLAR_RPC_URL`, or `STELLAR_NETWORK_PASSPHRASE` when needed; `.env.example` documents the defaults and contains only public Testnet values.
 
 Do not commit private keys, seed phrases, signing secrets, or production credentials to the project.
+
+## Offline smoke coverage
+
+Every command in this README is exercised by StellarForge's offline documentation smoke test in a freshly generated temporary project. `npm start` exits after printing public Testnet endpoints; no Stellar CLI, signing identity, credential, or external network access is required.
