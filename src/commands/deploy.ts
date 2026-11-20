@@ -14,6 +14,8 @@ import type { DevProcessSpec } from '../dev/project.js';
 import {
   resolveTestnetDeploymentPlan,
   validateDeploymentOutput,
+  DEPLOYMENT_TERMINATION_GRACE_MS,
+  DEPLOYMENT_TIMEOUT_MS,
   type DeployedContractData,
   type DeploymentOutput,
   type TestnetDeploymentInput,
@@ -118,6 +120,10 @@ export function createDeployCommand(
       await superviseDevProcesses(plan, {
         ...options,
         output,
+        timeoutMs: DEPLOYMENT_TIMEOUT_MS,
+        terminationGraceMs: DEPLOYMENT_TERMINATION_GRACE_MS,
+        timeoutMessage:
+          'Deployment timed out locally after 10 minutes. The remote submission outcome is uncertain; verify the transaction manually before retrying.',
         ...(effectiveSpawnProcess === undefined
           ? {}
           : { spawnProcess: effectiveSpawnProcess }),

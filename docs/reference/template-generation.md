@@ -28,4 +28,26 @@ If validation, copying, or substitution fails before promotion, the staging dire
 
 This model deliberately favors conservative failure over partial generation or implicit overwrite behavior.
 
+## Provenance marker
+
+Every generated project carries a small provenance marker at `<project>/.stellarforge.json` so users and maintainers can identify which template and generator produced the project during support:
+
+```json
+{
+  "generator": "@diginodes/stellarforge-cli",
+  "template": "basic-app",
+  "version": "0.1.0"
+}
+```
+
+The format is stable:
+
+- `generator` is the published package identifier that produced the project.
+- `template` is the template identifier (one of `basic-app`, `full-stack`, `smart-contract`, `api-service`).
+- `version` is the generator (CLI) semantic version from package metadata.
+
+The marker is byte-stable across runs with the same generator version: key order, indentation, and trailing newline never change, and no other values (project name, user, host, path, timestamps, or environment) are recorded. Outside of the version value itself, generation is deterministic.
+
+The marker is written during generation and is inert to normal project tooling (nothing in the supported templates or the CLI reads it back). It is not a credential and must never be used for telemetry.
+
 If generation is refused, see [Troubleshooting](troubleshooting.md#stellarforge-new-cannot-create-the-project) and [Project name is rejected](troubleshooting.md#project-name-is-rejected).

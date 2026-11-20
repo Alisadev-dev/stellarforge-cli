@@ -1,15 +1,27 @@
 import { PassThrough } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createDeployCommand } from '../src/commands/deploy.js';
 import type { ManagedChildProcess } from '../src/dev/orchestrator.js';
 import { SubprocessCliError } from '../src/errors/errors.js';
+import {
+  DEPLOYMENT_TERMINATION_GRACE_MS,
+  DEPLOYMENT_TIMEOUT_MS,
+} from '../src/deployment/project.js';
 import { createCapturedTerminalOutput } from './helpers/index.js';
 
 class DeployChild implements ManagedChildProcess {
+  readonly pid?: number;
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
+  readonly killedSignals: NodeJS.Signals[] = [];
   #exitListener:
     ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+
+  constructor(pid?: number) {
+    if (pid !== undefined) {
+      this.pid = pid;
+    }
+  }
 
   once(event: 'error', listener: (error: Error) => void): this;
   once(
@@ -31,7 +43,8 @@ class DeployChild implements ManagedChildProcess {
     return this;
   }
 
-  kill(): boolean {
+  kill(signal: NodeJS.Signals = 'SIGTERM'): boolean {
+    this.killedSignals.push(signal);
     return true;
   }
 
@@ -134,5 +147,55 @@ describe('deploy command', () => {
     child.exit(2);
 
     await expect(running).rejects.toBeInstanceOf(SubprocessCliError);
+  });
+
+  it('bounds local deployment cleanup and reports the remote outcome as uncertain', async () => {
+    vi.useFakeTimers();
+    try {
+      const pid = process.platform === 'win32' ? undefined : 31337;
+      const child = new DeployChild(pid);
+      const processKill = vi.spyOn(process, 'kill').mockReturnValue(true);
+      const command = createDeployCommand({
+        cwd: () => '/workspace',
+        resolvePlan: () => [
+          {
+            label: 'stellar:deploy',
+            command: 'stellar',
+            args: ['contract', 'deploy'],
+            cwd: '/workspace',
+          },
+        ],
+        spawnProcess: () => child,
+      });
+
+      const running = command.parseAsync([
+        'node',
+        'deploy',
+        '--network',
+        'testnet',
+        '--source',
+        'alice',
+      ]);
+      const rejection = expect(running).rejects.toMatchObject({
+        exitCode: 3,
+        userMessage: expect.stringContaining(
+          'The remote submission outcome is uncertain',
+        ),
+      });
+      await vi.advanceTimersByTimeAsync(
+        DEPLOYMENT_TIMEOUT_MS + 2 * DEPLOYMENT_TERMINATION_GRACE_MS,
+      );
+
+      await rejection;
+      if (pid === undefined) {
+        expect(child.killedSignals).toEqual(['SIGTERM', 'SIGKILL']);
+      } else {
+        expect(processKill).toHaveBeenCalledWith(-pid, 'SIGTERM');
+        expect(processKill).toHaveBeenCalledWith(-pid, 'SIGKILL');
+      }
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
   });
 });

@@ -18,6 +18,7 @@ export interface NewCommandOptions {
 
 interface NewCommandFlags {
   readonly template?: string;
+  readonly dryRun?: boolean;
 }
 
 function createDefaultServices(): ProjectGeneratorServices {
@@ -25,9 +26,12 @@ function createDefaultServices(): ProjectGeneratorServices {
     validate: validateProjectInput,
     planDestination: planProjectDestination,
     selectTemplate,
-    generate(context) {
+    generate(context, generationOptions) {
       return generateProjectFromTemplate(context, {
         templateRoot: resolveBundledTemplateRoot(context.template.templateId),
+        ...(generationOptions?.dryRun === undefined
+          ? {}
+          : { dryRun: generationOptions.dryRun }),
       });
     },
   };
@@ -45,6 +49,7 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
       '-t, --template <id>',
       'Bundled template: basic-app, full-stack, smart-contract, or api-service.',
     )
+    .option('--dry-run', 'Preview generated files without writing to disk.')
     .action((projectName: string, flags: NewCommandFlags) => {
       const result = orchestrateProjectGeneration(
         {
@@ -55,7 +60,24 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
             : { templateId: flags.template }),
         },
         services,
+        {
+          ...(flags.dryRun === undefined ? {} : { dryRun: flags.dryRun }),
+        },
       );
+
+      if ('dryRun' in result) {
+        output.info(
+          `Preview for ${result.templateId} at ${result.destination}:`,
+        );
+        output.info('Files to add:');
+        for (const file of result.files) {
+          output.info(`  ${file.path}`);
+          for (const substitution of file.substitutions) {
+            output.info(`    ${substitution}`);
+          }
+        }
+        return;
+      }
 
       output.success(
         `Created ${result.projectName} from ${result.templateId} at ${result.destination}.`,

@@ -5,6 +5,7 @@ import { createDevCommand } from './dev.js';
 import { createDoctorCommand } from './doctor.js';
 import { createNewCommand } from './new.js';
 import { createTestCommand } from './test.js';
+import { createValidateCommand } from './validate.js';
 
 // Commander exposes unknownCommand() at runtime but omits it from its typings.
 interface UnknownCommandReporter {
@@ -46,6 +47,7 @@ export function createRootCommand(version = resolveCliVersion()): Command {
     createDevCommand(),
     createTestCommand(),
     createDeployCommand(),
+    createValidateCommand(),
   ];
 
   for (const command of subcommands) {

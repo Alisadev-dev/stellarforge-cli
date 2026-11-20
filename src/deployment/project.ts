@@ -5,6 +5,9 @@ import type { DevProcessSpec } from '../dev/project.js';
 import { SubprocessCliError, ValidationCliError } from '../errors/errors.js';
 import { redactSecretLikeText } from '../output/redaction.js';
 
+export const DEPLOYMENT_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEPLOYMENT_TERMINATION_GRACE_MS = 5 * 1000;
+
 export interface TestnetDeploymentInput {
   readonly cwd: string;
   readonly network: string;

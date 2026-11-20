@@ -100,3 +100,78 @@ jobs:
 
       - name: Build platform artifact
         run: npm run build
+
+      - name: Smoke / basic-app / generate
+        run: node dist/cli.js new smoke-basic-app --template basic-app
+
+      - name: Smoke / basic-app / install
+        working-directory: ./smoke-basic-app
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Smoke / basic-app / check
+        working-directory: ./smoke-basic-app
+        run: npm run check
+
+      - name: Smoke / basic-app / test
+        working-directory: ./smoke-basic-app
+        run: npm test
+
+      - name: Smoke / api-service / generate
+        run: node dist/cli.js new smoke-api-service --template api-service
+
+      - name: Smoke / api-service / install
+        working-directory: ./smoke-api-service
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Smoke / api-service / check
+        working-directory: ./smoke-api-service
+        run: npm run check
+
+      - name: Smoke / api-service / test
+        working-directory: ./smoke-api-service
+        run: npm test
+
+      - name: Smoke / full-stack / generate
+        run: node dist/cli.js new smoke-full-stack --template full-stack
+
+      - name: Smoke / full-stack / install
+        working-directory: ./smoke-full-stack
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Smoke / full-stack / check
+        working-directory: ./smoke-full-stack
+        run: npm run check
+
+      - name: Smoke / full-stack / test
+        working-directory: ./smoke-full-stack
+        run: npm test
+
+  cargo-smoke:
+    name: Smart Contract / Cargo metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.13.0'
+          package-manager-cache: false
+
+      - name: Install from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build CLI
+        run: npm run build
+
+      - name: Smoke / smart-contract / generate
+        run: node dist/cli.js new smoke-smart-contract --template smart-contract
+
+      - name: Smoke / smart-contract / cargo metadata
+        working-directory: ./smoke-smart-contract
+        run: cargo metadata --no-deps --format-version 1

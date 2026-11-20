@@ -467,3 +467,72 @@ describe('critical path: supported platform contract', () => {
     expect(platformSupport).toContain('continue-on-error');
   });
 });
+
+describe('critical path: generated-project smoke coverage (SW-202)', () => {
+  const ciWorkflow = readRepositoryFile('.github', 'workflows', 'ci.yml');
+
+  it('generates all four templates from the built CLI in CI', () => {
+    expect(ciWorkflow).toContain('node dist/cli.js new');
+
+    for (const template of [
+      'basic-app',
+      'api-service',
+      'full-stack',
+      'smart-contract',
+    ]) {
+      expect(ciWorkflow).toContain(`--template ${template}`);
+    }
+  });
+
+  it.each([
+    ['basic-app', './smoke-basic-app'],
+    ['api-service', './smoke-api-service'],
+    ['full-stack', './smoke-full-stack'],
+  ])(
+    'runs clean install and the documented check/test commands for %s on every platform',
+    (template, directory) => {
+      expect(ciWorkflow).toContain(`Smoke / ${template} / install`);
+      expect(ciWorkflow).toContain(`Smoke / ${template} / check`);
+      expect(ciWorkflow).toContain(`Smoke / ${template} / test`);
+      expect(ciWorkflow).toContain(directory);
+      expect(ciWorkflow).toContain('npm install --ignore-scripts');
+      expect(ciWorkflow).toContain('npm run check');
+    },
+  );
+
+  it('keeps smart-contract metadata in a dedicated Cargo job without live network access', () => {
+    expect(ciWorkflow).toContain('cargo metadata --no-deps');
+    expect(ciWorkflow).toContain('Smoke / smart-contract / generate');
+    expect(ciWorkflow).toContain('Smoke / smart-contract / cargo metadata');
+    // No smart-contract build or test (which would resolve crates from the network).
+    expect(ciWorkflow).not.toContain('cargo test');
+    expect(ciWorkflow).not.toContain('cargo build');
+  });
+
+  it('runs the Node template smoke steps across the supported platform matrix', () => {
+    for (const target of [
+      'Linux / Node 22',
+      'Linux / Node 24',
+      'macOS / Node 22',
+      'Windows / Node 22',
+    ]) {
+      expect(ciWorkflow).toContain(target);
+    }
+  });
+
+  it('names the affected template and command in every smoke step and stays least-privilege', () => {
+    const smokeSteps = ciWorkflow
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('- name: Smoke /'));
+
+    expect(smokeSteps.length).toBeGreaterThanOrEqual(14);
+
+    for (const step of smokeSteps) {
+      expect(step).toMatch(/basic-app|api-service|full-stack|smart-contract/);
+    }
+
+    expect(ciWorkflow).toContain('contents: read');
+    expect(ciWorkflow).not.toContain('continue-on-error');
+  });
+});

@@ -14,6 +14,7 @@ interface ManagedStream {
 }
 
 export interface ManagedChildProcess {
+  readonly pid?: number;
   readonly stdout: ManagedStream;
   readonly stderr: ManagedStream;
   once(event: 'error', listener: (error: Error) => void): ManagedChildProcess;
@@ -39,6 +40,9 @@ export interface DevOrchestratorOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly spawnProcess?: DevProcessSpawner;
   readonly signalSource?: DevSignalSource;
+  readonly timeoutMs?: number;
+  readonly terminationGraceMs?: number;
+  readonly timeoutMessage?: string;
 }
 
 export function defaultSpawnProcess(
@@ -49,8 +53,44 @@ export function defaultSpawnProcess(
     cwd: spec.cwd,
     env: environment,
     shell: false,
+    detached: process.platform !== 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
   }) as unknown as ManagedChildProcess;
+}
+
+function signalChildTree(
+  child: ManagedChildProcess,
+  signal: NodeJS.Signals,
+): void {
+  if (typeof child.pid !== 'number') {
+    child.kill(signal);
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    try {
+      const args = ['/PID', String(child.pid), '/T'];
+      if (signal === 'SIGKILL') {
+        args.push('/F');
+      }
+
+      const killer = spawn('taskkill.exe', args, {
+        shell: false,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      killer.once('error', () => child.kill(signal));
+    } catch {
+      child.kill(signal);
+    }
+    return;
+  }
+
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    child.kill(signal);
+  }
 }
 
 const MAX_BUFFERED_LINE_LENGTH = 64 * 1024;
@@ -245,6 +285,22 @@ export async function superviseDevProcesses(
   const signalSource = options.signalSource ?? process;
   const children: ManagedChildProcess[] = [];
   let shuttingDown = false;
+  let timedOut = false;
+  let timeoutTimer: NodeJS.Timeout | undefined;
+  let escalationTimer: NodeJS.Timeout | undefined;
+  let timeoutSettlementTimer: NodeJS.Timeout | undefined;
+
+  const clearTimers = (): void => {
+    clearTimeout(timeoutTimer);
+    clearTimeout(escalationTimer);
+    clearTimeout(timeoutSettlementTimer);
+  };
+
+  const signalChildren = (signal: NodeJS.Signals): void => {
+    for (const child of children) {
+      signalChildTree(child, signal);
+    }
+  };
 
   const stopChildren = (signal: NodeJS.Signals): void => {
     if (shuttingDown) {
@@ -252,9 +308,7 @@ export async function superviseDevProcesses(
     }
 
     shuttingDown = true;
-    for (const child of children) {
-      child.kill(signal);
-    }
+    signalChildren(signal);
   };
 
   const handleSigint = (): void => stopChildren('SIGINT');
@@ -267,6 +321,20 @@ export async function superviseDevProcesses(
     await new Promise<void>((resolve, reject) => {
       let remaining = specs.length;
       let settled = false;
+      const timeoutError = new SubprocessCliError(
+        options.timeoutMessage ??
+          `A development process timed out after ${options.timeoutMs ?? 0} ms.`,
+      );
+
+      const finishTimeout = (): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimers();
+        reject(timeoutError);
+      };
 
       interface ChildState {
         label: string;
@@ -281,11 +349,12 @@ export async function superviseDevProcesses(
       }
 
       const fail = (message: string, cause?: Error): void => {
-        if (settled) {
+        if (settled || timedOut) {
           return;
         }
 
         settled = true;
+        clearTimers();
         // Signal siblings for cleanup but leave still-open streams alone: a
         // later flush there could emit half of a sensitive assignment. Any
         // pending line stays bounded in the writer until its stream ends.
@@ -326,7 +395,13 @@ export async function superviseDevProcesses(
         }
 
         if (remaining === 0) {
+          if (timedOut) {
+            finishTimeout();
+            return;
+          }
+
           settled = true;
+          clearTimers();
           resolve();
         }
       };
@@ -413,6 +488,23 @@ export async function superviseDevProcesses(
           state.exitSignal = signal;
           maybeComplete(state);
         });
+      }
+
+      if (options.timeoutMs !== undefined) {
+        timeoutTimer = setTimeout(() => {
+          if (settled) {
+            return;
+          }
+
+          timedOut = true;
+          shuttingDown = true;
+          signalChildren('SIGTERM');
+          const graceMs = options.terminationGraceMs ?? 5_000;
+          escalationTimer = setTimeout(() => {
+            signalChildren('SIGKILL');
+            timeoutSettlementTimer = setTimeout(finishTimeout, graceMs);
+          }, graceMs);
+        }, options.timeoutMs);
       }
     });
   } finally {

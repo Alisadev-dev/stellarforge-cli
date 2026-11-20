@@ -22,6 +22,7 @@ describe('StellarForge root command', () => {
       'dev',
       'test',
       'deploy',
+      'validate',
     ]);
   });
 
@@ -35,6 +36,7 @@ describe('StellarForge root command', () => {
     expect(help).toContain('dev');
     expect(help).toContain('test');
     expect(help).toContain('deploy');
+    expect(help).toContain('validate');
     expect(help).toContain('-V, --version');
     expect(help).toContain('-h, --help');
   });
@@ -42,7 +44,7 @@ describe('StellarForge root command', () => {
   it('exposes exactly the implemented v1 command inventory in global help', () => {
     const help = createRootCommand('1.2.3').helpInformation();
 
-    const implemented = ['doctor', 'new', 'dev', 'test', 'deploy'];
+    const implemented = ['doctor', 'new', 'dev', 'test', 'deploy', 'validate'];
     for (const cmd of implemented) {
       expect(help).toContain(cmd);
     }

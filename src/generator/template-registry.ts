@@ -41,6 +41,14 @@ const TEMPLATES: readonly TemplateMetadata[] = [
   },
 ] as const;
 
+// Fail fast at module load if someone accidentally introduces a duplicate ID.
+(function assertNoDuplicateIds() {
+  const ids = TEMPLATES.map((t) => t.id);
+  if (new Set(ids).size !== ids.length) {
+    throw new Error('template-registry: duplicate template ID detected');
+  }
+})();
+
 const DEFAULT_TEMPLATE_ID: TemplateId = 'basic-app';
 
 export function listTemplates(): readonly TemplateMetadata[] {

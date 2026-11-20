@@ -1,4 +1,4 @@
-import { CommanderError } from 'commander';
+import { Command, CommanderError } from 'commander';
 import { describe, expect, it } from 'vitest';
 import {
   EXIT_CODES,
@@ -8,9 +8,55 @@ import {
   SubprocessCliError,
   ValidationCliError,
 } from '../src/errors/index.js';
+import { runCli } from '../src/main.js';
 import { createCapturedTerminalOutput } from './helpers/captured-output.js';
 
 describe('CLI error boundary', () => {
+  it.each([
+    {
+      error: new ValidationCliError('Injected command validation failure.'),
+      exitCode: EXIT_CODES.validation,
+      message: 'Injected command validation failure.',
+    },
+    {
+      error: new Error('injected implementation detail'),
+      exitCode: EXIT_CODES.unexpected,
+      message: 'StellarForge encountered an unexpected error.',
+    },
+  ])(
+    'normalizes async command rejection from runCli',
+    async ({ error, exitCode, message }) => {
+      const { output, stderr } = createCapturedTerminalOutput();
+      const unhandled: unknown[] = [];
+      const recordUnhandled = (reason: unknown): void => {
+        unhandled.push(reason);
+      };
+      const program = new Command('stellarforge');
+      program.addCommand(
+        new Command('injected').action(async () => {
+          throw error;
+        }),
+      );
+
+      process.on('unhandledRejection', recordUnhandled);
+      try {
+        const result = await runWithCliErrorBoundary(
+          () => runCli(['node', 'stellarforge', 'injected'], () => program),
+          output,
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(result).toBe(exitCode);
+        expect(stderr.join('')).toContain(message);
+        expect(stderr.join('')).not.toContain('injected implementation detail');
+        expect(stderr.join('')).not.toMatch(/^\s+at /m);
+        expect(unhandled).toEqual([]);
+      } finally {
+        process.removeListener('unhandledRejection', recordUnhandled);
+      }
+    },
+  );
+
   it('returns success when the action completes', async () => {
     const { output, stdout, stderr } = createCapturedTerminalOutput();
 

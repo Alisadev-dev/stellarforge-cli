@@ -6,16 +6,16 @@ StellarForge CLI treats supported-platform failures as release blockers unless a
 
 | Operating system | Runtime | Validation level |
 | --- | --- | --- |
-| Linux (GitHub-hosted Ubuntu) | Node.js 22.13+ LTS | Full quality gate, tests, build |
-| Linux (GitHub-hosted Ubuntu) | Node.js 24 LTS | Tests and build |
-| macOS (GitHub-hosted macOS) | Node.js 22.13+ LTS | Tests and build |
-| Windows (GitHub-hosted Windows) | Node.js 22.13+ LTS | Tests and build |
+| Linux (GitHub-hosted Ubuntu) | Node.js 22.13+ LTS | Full quality gate, tests, build, generated-project smoke |
+| Linux (GitHub-hosted Ubuntu) | Node.js 24 LTS | Tests, build, generated-project smoke |
+| macOS (GitHub-hosted macOS) | Node.js 22.13+ LTS | Tests, build, generated-project smoke |
+| Windows (GitHub-hosted Windows) | Node.js 22.13+ LTS | Tests, build, generated-project smoke |
 
 The package engine range remains `Node.js >=22.13.0 <25` and `npm >=10.9.0`, matching `package.json`. Node.js 22 and Node.js 24 are the supported LTS majors for the current MVP. Intermediate non-LTS Node releases are not release-validation targets. These documented ranges mirror the CI matrix and must not be expanded or contracted without a policy review.
 
 ## What the platform matrix exercises
 
-The platform jobs run the repository test suite and production build. This includes coverage for:
+The platform jobs run the repository test suite, the production build, and clean generated-project smoke passes for all four templates on every OS leg: each Node template (`basic-app`, `api-service`, `full-stack`) is generated from the built CLI, installed with `npm install --ignore-scripts`, and run through its documented `npm run check` and `npm test` commands. The `smart-contract` template is generated and validated with an offline `cargo metadata --no-deps` invocation in a dedicated Cargo job (no crate resolution from crates.io). This includes coverage for:
 
 - compiled CLI startup, help, version, and parser exit behavior;
 - project path validation and generation safety;

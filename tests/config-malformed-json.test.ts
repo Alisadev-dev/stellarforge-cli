@@ -317,7 +317,10 @@ describe('UTF-8 BOM handling in the project configuration (SW-217)', () => {
         JSON.stringify({ version: 1, network: 'testnet' }),
       );
 
-      expect(loadProjectConfig(root)).toEqual({ network: 'testnet' });
+      expect(loadProjectConfig(root)).toEqual({
+        version: 1,
+        network: 'testnet',
+      });
     }));
 
   it('does not corrupt a BOM-prefixed malformed document', () =>
