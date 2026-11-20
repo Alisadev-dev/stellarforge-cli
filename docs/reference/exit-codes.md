@@ -15,6 +15,19 @@ StellarForge CLI uses predictable process exit codes so humans, scripts, and CI 
 
 These values are part of the CLI contract and should not be changed casually. New stable categories require deliberate review and documentation.
 
+## Doctor / Diagnostic Contract
+
+`stellarforge doctor` evaluates registered checks sequentially in registration order, then reports an aggregate result. Summary counts are over the evaluated check set: `pass + warn + fail == total`.
+
+| Scenario | Aggregate health | Exit code |
+|---|---|---|
+| No diagnostics registered / empty set (`total` 0) | No diagnostics registered | `0` |
+| All checks pass | Ready | `0` |
+| Mixed pass/warn, no failures | Usable with warnings | `0` |
+| Any failed check (including timeout or unavailable tool) | Action required | `5` |
+
+An incomplete/partial diagnostic set (for example, checks without remediation) is rendered deterministically as-is and counted by its reported statuses; missing remediation text does not change aggregation or exit code. Human summary/health lines and machine-readable summary counts must describe the same contract.
+
 ## Troubleshooting by Exit Code
 
 | Exit code | Start here |
