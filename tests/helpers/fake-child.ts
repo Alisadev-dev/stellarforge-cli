@@ -50,6 +50,10 @@ export class FakeChildProcess implements ManagedChildProcess {
     for (const chunk of output.stderr ?? []) {
       this.stderr.write(chunk);
     }
+    // End both stdio streams so the supervisor, which settles once they close,
+    // observes the same lifecycle a real child produces.
+    this.stdout.end();
+    this.stderr.end();
     await new Promise<void>((resolve) => setImmediate(resolve));
     this.#exitListener?.(code, null);
   }

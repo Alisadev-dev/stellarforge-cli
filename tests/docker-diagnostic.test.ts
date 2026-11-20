@@ -16,6 +16,12 @@ function result(
   };
 }
 
+function etimedout(message = 'Command timed out'): Error {
+  const error = new Error(message) as NodeJS.ErrnoException;
+  error.code = 'ETIMEDOUT';
+  return error;
+}
+
 describe('Docker diagnostic', () => {
   it('passes when the Docker CLI and daemon are available', () => {
     const calls: Array<{ executable: string; args: readonly string[] }> = [];
@@ -130,4 +136,103 @@ describe('Docker diagnostic', () => {
       expect(diagnostic.message).not.toContain('unreachable');
     },
   );
+});
+
+describe('Docker timeout handling', () => {
+  it('reports timeout for Docker CLI without leaking error codes', () => {
+    const execute: RunCommand = () =>
+      result(null, '', '', etimedout('Docker CLI timed out'));
+
+    const diagnostic = createDockerDiagnostic({ execute }).run();
+
+    expect(diagnostic.status).toBe('warn');
+    expect(diagnostic.message).toContain('timed out');
+    expect(diagnostic.remediation).toContain('responds promptly');
+    expect(JSON.stringify(diagnostic)).not.toContain('ETIMEDOUT');
+    expect(JSON.stringify(diagnostic)).not.toContain('Error:');
+  });
+
+  it('reports timeout for Docker daemon separately from CLI', () => {
+    const execute: RunCommand = (_executable, args) => {
+      if (args[0] === '--version') {
+        return result(0, 'Docker version 28.4.0, build abcdef\n');
+      }
+
+      // Daemon info times out
+      return result(null, '', '', etimedout('Docker daemon timed out'));
+    };
+
+    const diagnostic = createDockerDiagnostic({ execute }).run();
+
+    expect(diagnostic.status).toBe('warn');
+    expect(diagnostic.message).toContain('28.4.0');
+    expect(diagnostic.message).toContain('daemon timed out');
+    expect(diagnostic.remediation).toContain('docker info');
+    expect(JSON.stringify(diagnostic)).not.toContain('ETIMEDOUT');
+  });
+
+  it('fails required Docker when CLI times out', () => {
+    const execute: RunCommand = () =>
+      result(null, '', '', etimedout('Docker CLI timed out'));
+
+    const diagnostic = createDockerDiagnostic({
+      execute,
+      required: true,
+    }).run();
+
+    expect(diagnostic.status).toBe('fail');
+    expect(diagnostic.message).toContain('required');
+    expect(diagnostic.message).toContain('timed out');
+    expect(JSON.stringify(diagnostic)).not.toContain('ETIMEDOUT');
+  });
+
+  it('fails required Docker when daemon times out', () => {
+    const execute: RunCommand = (_executable, args) => {
+      if (args[0] === '--version') {
+        return result(0, 'Docker version 28.4.0, build abcdef\n');
+      }
+
+      return result(null, '', '', etimedout('Docker daemon timed out'));
+    };
+
+    const diagnostic = createDockerDiagnostic({
+      execute,
+      required: true,
+    }).run();
+
+    expect(diagnostic.status).toBe('fail');
+    expect(diagnostic.message).toContain('28.4.0');
+    expect(diagnostic.message).toContain('daemon timed out');
+    expect(JSON.stringify(diagnostic)).not.toContain('ETIMEDOUT');
+  });
+
+  it('distinguishes timeout from other daemon failures', () => {
+    const timeoutExecute: RunCommand = (_executable, args) => {
+      if (args[0] === '--version') {
+        return result(0, 'Docker version 28.4.0, build abcdef\n');
+      }
+      return result(null, '', '', etimedout());
+    };
+
+    const failureExecute: RunCommand = (_executable, args) => {
+      if (args[0] === '--version') {
+        return result(0, 'Docker version 28.4.0, build abcdef\n');
+      }
+      return result(1, '', 'connection refused');
+    };
+
+    const timeoutDiag = createDockerDiagnostic({
+      execute: timeoutExecute,
+    }).run();
+    const failureDiag = createDockerDiagnostic({
+      execute: failureExecute,
+    }).run();
+
+    expect(timeoutDiag.message).toContain('timed out');
+    expect(timeoutDiag.remediation).toContain('responds promptly');
+
+    expect(failureDiag.message).toContain('unavailable');
+    expect(failureDiag.message).not.toContain('timed out');
+    expect(failureDiag.remediation).toContain('Start the Docker daemon');
+  });
 });

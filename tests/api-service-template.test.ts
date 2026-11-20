@@ -8,6 +8,10 @@ import {
   createCapturedTerminalOutput,
   withTempDirectory,
 } from './helpers/index.js';
+import {
+  assertNoArbitraryProcessKilling,
+  assertNoAutomaticPortHopping,
+} from './helpers/port-collision.js';
 
 function runNpmScript(projectRoot: string, script: string) {
   const npm = createNpmInvocation(['run', script]);
@@ -86,6 +90,18 @@ describe('API Service template', () => {
         expect(generatedReadme).toContain(
           'https://soroban-testnet.stellar.org',
         );
+        // Port-collision guidance (issue SW-196).
+        expect(generatedReadme).toContain('EADDRINUSE');
+        expect(generatedReadme).toContain('API_PORT');
+        expect(generatedReadme).toContain('API_HOST');
+        expect(generatedReadme).toContain('netstat -ano');
+        expect(generatedReadme).toContain('lsof -i :3000');
+        expect(generatedReadme).toContain('taskkill /PID');
+        expect(generatedReadme).toContain('kill <pid>');
+        expect(generatedReadme).not.toContain('BACKEND_PORT');
+        expect(generatedReadme).not.toContain('FRONTEND_PORT');
+        assertNoArbitraryProcessKilling(generatedReadme);
+        assertNoAutomaticPortHopping(generatedReadme);
       }),
     15_000,
   );

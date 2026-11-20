@@ -3,7 +3,7 @@ import { createRootCommand } from '../src/commands/root.js';
 import { EXIT_CODES } from '../src/errors/index.js';
 import { commanderCode, runRootCommand } from './helpers/index.js';
 
-const V1_COMMANDS = ['doctor', 'new', 'dev', 'test', 'deploy'];
+const V1_COMMANDS = ['doctor', 'new', 'dev', 'test', 'deploy', 'validate'];
 const POST_V1_COMMANDS = [
   'build',
   'init',

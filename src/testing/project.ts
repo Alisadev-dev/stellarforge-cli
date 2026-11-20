@@ -42,6 +42,14 @@ function resolveNodeTestPlan(projectRoot: string): DevProcessSpec | undefined {
     );
   }
 
+  // npm treats a present-but-empty test script as a successful no-op, which
+  // would report success without running any tests.
+  if (scripts.test.trim().length === 0) {
+    throw new ValidationCliError(
+      'This Node.js project defines an empty package.json test script. Add a non-empty test script before using `stellarforge test`.',
+    );
+  }
+
   const projectName =
     typeof projectPackage.name === 'string' && projectPackage.name.length > 0
       ? projectPackage.name

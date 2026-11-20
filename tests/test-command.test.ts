@@ -36,6 +36,9 @@ class TestChild implements ManagedChildProcess {
   }
 
   exit(code: number): void {
+    // End both stdio streams so the supervisor observes the full lifecycle.
+    this.stdout.end();
+    this.stderr.end();
     this.#exitListener?.(code, null);
   }
 }

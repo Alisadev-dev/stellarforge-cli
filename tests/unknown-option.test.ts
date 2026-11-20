@@ -13,7 +13,7 @@ describe('unknown-option remediation', () => {
     expect(result.stdout).toBe('');
     expect(result.stderr).toBe(
       "error: unknown option '--definitely-unknown'\n" +
-        'Available commands: doctor, new, dev, test, deploy.\n' +
+        'Available commands: doctor, new, dev, test, deploy, validate.\n' +
         "Run 'stellarforge --help' for usage.\n",
     );
   });

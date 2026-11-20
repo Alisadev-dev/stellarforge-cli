@@ -72,6 +72,9 @@ class FakeChild implements ManagedChildProcess {
   }
 
   emitExit(code: number | null, signal: NodeJS.Signals | null): void {
+    // End both stdio streams so the supervisor observes the full lifecycle.
+    this.stdout.end();
+    this.stderr.end();
     this.#exitListener?.(code, signal);
   }
 }
@@ -225,5 +228,130 @@ describe('supervisor cleanup never orphans a child (#166)', () => {
       "Development process 'worker' failed to start.",
     );
     expect(children[0]?.killedSignals).toEqual(['SIGTERM']);
+  });
+});
+
+describe('supervisor stream error handling (#389)', () => {
+  it('fails with a stable category and sanitizes the raw stream error', async () => {
+    const child = new FakeChild();
+    const captured = createCapturedTerminalOutput();
+    const rawError = new Error('read ECONNRESET /home/dev/secret/path/iso.bin');
+
+    const running = superviseDevProcesses(specs('api'), {
+      output: captured.output,
+      spawnProcess: () => child,
+      signalSource: new FakeSignalSource(),
+    });
+
+    child.stdout.destroy(rawError);
+
+    await expect(running).rejects.toBeInstanceOf(SubprocessCliError);
+    await expect(running).rejects.toThrow(
+      "Development process 'api' stdout stream failed.",
+    );
+
+    // The raw error message and its local path never reach the terminal.
+    const output = captured.stdoutText() + captured.stderrText();
+    expect(output).not.toContain('ECONNRESET');
+    expect(output).not.toContain('/home/dev/secret/path');
+  });
+
+  it('observes stderr errors independently from stdout', async () => {
+    const healthy = new FakeChild();
+    const failing = new FakeChild();
+    let index = 0;
+
+    const running = superviseDevProcesses(specs('api', 'worker'), {
+      spawnProcess: () => [healthy, failing][index++]!,
+      signalSource: new FakeSignalSource(),
+    });
+
+    // Healthy stdout; the stderr of the failing child dies.
+    healthy.stdout.write('ready\n');
+    failing.stderr.destroy(new Error('decoder exploded at /worker/iso'));
+
+    await expect(running).rejects.toThrow(
+      "Development process 'worker' stderr stream failed.",
+    );
+    expect(healthy.killedSignals).toEqual(['SIGTERM']);
+  });
+
+  it('signals sibling processes for cleanup on a stream error', async () => {
+    const children = [new FakeChild(), new FakeChild(), new FakeChild()];
+    let index = 0;
+
+    const running = superviseDevProcesses(specs('database', 'api', 'worker'), {
+      spawnProcess: () => children[index++]!,
+      signalSource: new FakeSignalSource(),
+    });
+
+    children[0]?.stdout.destroy(new Error('pipe broken'));
+
+    await expect(running).rejects.toThrow('stdout stream failed');
+    for (const child of children) {
+      expect(child.killedSignals).toEqual(['SIGTERM']);
+    }
+  });
+
+  it('settles only once when both stdout and stderr error simultaneously', async () => {
+    const child = new FakeChild();
+    let rejections = 0;
+
+    const running = superviseDevProcesses(specs('api'), {
+      output: createCapturedTerminalOutput().output,
+      spawnProcess: () => child,
+      signalSource: new FakeSignalSource(),
+    });
+    running.catch(() => {
+      rejections += 1;
+    });
+
+    child.stdout.destroy(new Error('stdout died'));
+    child.stderr.destroy(new Error('stderr died'));
+
+    await expect(running).rejects.toBeInstanceOf(SubprocessCliError);
+    expect(rejections).toBe(1);
+  });
+
+  it('settles only once when a stream error races process exit', async () => {
+    const child = new FakeChild();
+    let settlements = 0;
+
+    const running = superviseDevProcesses(specs('api'), {
+      output: createCapturedTerminalOutput().output,
+      spawnProcess: () => child,
+      signalSource: new FakeSignalSource(),
+    });
+    running.catch(() => {
+      settlements += 1;
+    });
+
+    child.stdout.write('partial line without terminator');
+    child.stdout.destroy(new Error('stream reset'));
+    child.emitExit(0, null);
+
+    await expect(running).rejects.toThrow('stdout stream failed');
+    expect(settlements).toBe(1);
+  });
+
+  it('flushes only the failed stream, never the still-open sibling stream', async () => {
+    const healthy = new FakeChild();
+    const failing = new FakeChild();
+    let index = 0;
+    const captured = createCapturedTerminalOutput();
+
+    const running = superviseDevProcesses(specs('api', 'worker'), {
+      output: captured.output,
+      spawnProcess: () => [healthy, failing][index++]!,
+      signalSource: new FakeSignalSource(),
+    });
+
+    // A split sensitive assignment pending in the healthy stream must never
+    // be flushed when the sibling's stream fails.
+    healthy.stdout.write('secret: sk_li');
+    failing.stderr.destroy(new Error('stream reset'));
+
+    await expect(running).rejects.toThrow('stderr stream failed');
+    expect(captured.stdoutText()).not.toContain('sk_li');
   });
 });

@@ -67,6 +67,10 @@ Contributions must follow secure engineering practices. In particular:
 
 Changes involving filesystem mutation, subprocess execution, dependency installation, deployment, credentials, release automation, or workflow permissions receive heightened review. Sensitive ownership boundaries are documented in `docs/contributing/ownership.md`; CODEOWNERS can request review, while mandatory enforcement depends on the repository ruleset documented in `docs/contributing/repository-ruleset.md`.
 
+### Source maps and debugging
+
+`tsconfig.build.json` always generates `.js.map`/`.d.ts.map` files so maintainers can debug from a source checkout, but the published npm package never ships them — `package.json`'s `files` array excludes `dist/**/*.map` (`tests/release-pack-snapshot.test.ts` enforces this). Unexpected CLI errors print a single generic message by default; set `DEBUG=stellarforge` (or `DEBUG=*`) to also print the redacted stack/cause for diagnosis.
+
 ## Pull Requests
 
 Pull requests should:

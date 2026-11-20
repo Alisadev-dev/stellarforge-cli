@@ -27,6 +27,16 @@ export interface ProjectGenerationResult {
   readonly templateId: string;
 }
 
+export interface ProjectGenerationPreview extends ProjectGenerationResult {
+  readonly dryRun: true;
+  readonly files: readonly ProjectGenerationPreviewFile[];
+}
+
+export interface ProjectGenerationPreviewFile {
+  readonly path: string;
+  readonly substitutions: readonly string[];
+}
+
 export interface ProjectGeneratorServices {
   validate(input: ProjectGeneratorInput): ValidatedProjectInput;
   planDestination(input: ValidatedProjectInput): DestinationPlan;
@@ -34,7 +44,10 @@ export interface ProjectGeneratorServices {
     input: ValidatedProjectInput,
     destination: DestinationPlan,
   ): TemplateSelection;
-  generate(context: GenerationContext): ProjectGenerationResult;
+  generate(
+    context: GenerationContext,
+    options?: { readonly dryRun?: boolean },
+  ): ProjectGenerationResult | ProjectGenerationPreview;
   install?(result: ProjectGenerationResult): void;
   initializeGit?(result: ProjectGenerationResult): void;
 }

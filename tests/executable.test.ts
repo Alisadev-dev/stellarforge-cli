@@ -7,6 +7,7 @@ import {
   repositoryRoot,
   runBuiltCli,
 } from './helpers/cli-process.js';
+import { withTempDirectory } from './helpers/temp-directory.js';
 
 const packageJsonPath = resolve(repositoryRoot, 'package.json');
 const DOCTOR_TEST_TIMEOUT_MS = 25_000;
@@ -101,7 +102,7 @@ describe('StellarForge CLI executable', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("error: unknown command 'not-a-command'");
     expect(result.stderr).toContain(
-      'Available commands: doctor, new, dev, test, deploy.',
+      'Available commands: doctor, new, dev, test, deploy, validate.',
     );
     expect(result.stderr).not.toContain(
       'StellarForge encountered an unexpected error.',
@@ -118,4 +119,19 @@ describe('StellarForge CLI executable', () => {
         "Run 'stellarforge deploy --help' for usage.\n",
     );
   });
+
+  it('normalizes an asynchronous deployment rejection at the executable boundary', async () =>
+    withTempDirectory(async (cwd) => {
+      const result = runBuiltCli(
+        ['deploy', '--network', 'testnet', '--source', 'deployer'],
+        cwd,
+      );
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('No Cargo.toml workspace was found.');
+      expect(result.stderr).not.toMatch(/^\s+at /m);
+      expect(result.stderr).not.toContain(
+        'StellarForge encountered an unexpected error.',
+      );
+    }));
 });

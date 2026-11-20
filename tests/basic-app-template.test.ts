@@ -8,6 +8,10 @@ import {
   createCapturedTerminalOutput,
   withTempDirectory,
 } from './helpers/index.js';
+import {
+  assertNoArbitraryProcessKilling,
+  assertNoAutomaticPortHopping,
+} from './helpers/port-collision.js';
 
 function runNpmScript(projectRoot: string, script: string) {
   const npm = createNpmInvocation(['run', script]);
@@ -62,6 +66,17 @@ describe('Basic App template', () => {
         expect(generatedReadme).toContain(
           'does not require or generate wallet secret keys',
         );
+        // Port-collision guidance: this template opens no listening socket.
+        expect(generatedReadme).toContain('no listening socket');
+        expect(generatedReadme).toContain('EADDRINUSE');
+        expect(generatedReadme).toContain('STELLAR_HORIZON_URL');
+        expect(generatedReadme).toContain('STELLAR_RPC_URL');
+        expect(generatedReadme).toContain('STELLAR_NETWORK_PASSPHRASE');
+        expect(generatedReadme).not.toContain('API_PORT');
+        expect(generatedReadme).not.toContain('BACKEND_PORT');
+        expect(generatedReadme).not.toContain('FRONTEND_PORT');
+        assertNoArbitraryProcessKilling(generatedReadme);
+        assertNoAutomaticPortHopping(generatedReadme);
       }),
     15_000,
   );

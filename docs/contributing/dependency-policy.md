@@ -32,14 +32,14 @@ Before adding a dependency, consider:
 
 The workflow contract is:
 
-| Setting | Required behavior |
-| --- | --- |
-| Trigger | `pull_request`, using the default opened, synchronize, and reopened events; no branch or path filters |
-| Permissions | Top-level `contents: read`; no job-level override, write permission, or secrets required |
-| Job | `dependency-review`, displayed as `Dependency Review`, on `ubuntu-latest` with a 10-minute timeout |
-| Action | `actions/dependency-review-action`, pinned to a reviewed full 40-character commit SHA |
-| Failure threshold | `fail-on-severity: high`, covering newly introduced high and critical vulnerabilities |
-| Execution | No conditional skips, `continue-on-error`, checkout, install, or arbitrary command steps |
+| Setting           | Required behavior                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| Trigger           | `pull_request`, using the default opened, synchronize, and reopened events; no branch or path filters |
+| Permissions       | Top-level `contents: read`; no job-level override, write permission, or secrets required              |
+| Job               | `dependency-review`, displayed as `Dependency Review`, on `ubuntu-latest` with a 10-minute timeout    |
+| Action            | `actions/dependency-review-action`, pinned to a reviewed full 40-character commit SHA                 |
+| Failure threshold | `fail-on-severity: high`, covering newly introduced high and critical vulnerabilities                 |
+| Execution         | No conditional skips, `continue-on-error`, checkout, install, or arbitrary command steps              |
 
 This is an unprivileged PR check, not `pull_request_target`. It compares dependency changes between the PR's base and head; it is not a full audit of every dependency already present in the base branch. There are no severity exceptions or package allowlists configured in this workflow.
 
@@ -70,6 +70,8 @@ Compatible minor and patch updates are grouped to reduce pull-request noise:
 Major updates are intentionally excluded from these groups and remain **separate** so compatibility, migration requirements, security impact, and release impact can be reviewed explicitly.
 
 Dependabot pull requests must pass the same CI/security checks as contributor pull requests and remain subject to maintainer review. **No auto-merge policy is enabled** by this configuration.
+
+`ci.yml`, `e2e-smoke.yml`, `codeql.yml`, and `dependency-review.yml` all trigger on `pull_request` with no actor-based skip, so a Dependabot PR runs the identical gate set a human-authored PR does. `ci.yml`'s platform matrix and `e2e-smoke.yml` both exercise every supported Node major from `engines.node` (currently Node 22 and Node 24), so a dependency bump to TypeScript, Vitest, Commander, or other build tooling is smoke-tested against the whole supported runtime range, not just the Node 22 floor. `tests/dependabot-policy.test.ts` enforces this triggers/matrix shape and that no workflow configures auto-merge.
 
 ### Node.js type definitions and the supported runtime
 

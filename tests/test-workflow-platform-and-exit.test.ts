@@ -76,11 +76,19 @@ class FakeChild implements ManagedChildProcess {
 
   kill(signal: NodeJS.Signals = 'SIGTERM'): boolean {
     this.killedSignals.push(signal);
-    queueMicrotask(() => this.#exitListener?.(null, signal));
+    queueMicrotask(() => {
+      // End both stdio streams so the supervisor observes the full lifecycle.
+      this.stdout.end();
+      this.stderr.end();
+      this.#exitListener?.(null, signal);
+    });
     return true;
   }
 
   emitExit(code: number | null, signal: NodeJS.Signals | null): void {
+    // End both stdio streams so the supervisor observes the full lifecycle.
+    this.stdout.end();
+    this.stderr.end();
     this.#exitListener?.(code, signal);
   }
 }

@@ -52,6 +52,9 @@ class MockDeployProcess implements ManagedChildProcess {
   }
 
   exitWith(code: number | null, signal: NodeJS.Signals | null = null): void {
+    // End both stdio streams so the supervisor observes the full lifecycle.
+    this.stdout.end();
+    this.stderr.end();
     this.#exitListener?.(code, signal);
   }
 

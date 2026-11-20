@@ -8,6 +8,10 @@ import {
   createCapturedTerminalOutput,
   withTempDirectory,
 } from './helpers/index.js';
+import {
+  assertNoArbitraryProcessKilling,
+  assertNoAutomaticPortHopping,
+} from './helpers/port-collision.js';
 
 function runNpmScript(projectRoot: string, script: string) {
   const npm = createNpmInvocation(['run', script]);
@@ -73,6 +77,18 @@ describe('Full Stack template', () => {
         expect(generatedReadme).toContain('backend/');
         expect(generatedReadme).toContain('contracts/');
         expect(generatedReadme).toContain('no credentials');
+        // Port-collision guidance (issue SW-196).
+        expect(generatedReadme).toContain('EADDRINUSE');
+        expect(generatedReadme).toContain('BACKEND_PORT');
+        expect(generatedReadme).toContain('netstat -ano');
+        expect(generatedReadme).toContain('lsof -i :3000');
+        expect(generatedReadme).toContain('taskkill /PID');
+        expect(generatedReadme).toContain('kill <pid>');
+        // The frontend has no server and no port variable.
+        expect(generatedReadme).not.toContain('FRONTEND_PORT');
+        expect(generatedReadme).not.toContain('API_PORT');
+        assertNoArbitraryProcessKilling(generatedReadme);
+        assertNoAutomaticPortHopping(generatedReadme);
       }),
     15_000,
   );
