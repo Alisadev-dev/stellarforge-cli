@@ -25,6 +25,104 @@ export interface TestnetDeploymentInput {
   readonly source: string;
 }
 
+export interface DeploymentPreflightCheck {
+  readonly label: string;
+  readonly passed: boolean;
+  readonly remediation?: string;
+}
+
+export interface DeploymentPreflightResult {
+  readonly passed: boolean;
+  readonly checks: readonly DeploymentPreflightCheck[];
+}
+
+/**
+ * Local-only preflight validation. Performs no subprocess spawns and no
+ * network requests. Never echoes the identity alias, config values, or paths.
+ */
+export function runDeploymentPreflight(
+  input: TestnetDeploymentInput,
+): DeploymentPreflightResult {
+  const projectRoot = resolve(input.cwd);
+  const checks: DeploymentPreflightCheck[] = [];
+
+  const networkOk = input.network === 'testnet';
+  checks.push({
+    label: 'Network is testnet',
+    passed: networkOk,
+    ...(networkOk
+      ? {}
+      : {
+          remediation:
+            'StellarForge deploy supports only the explicit `--network testnet` target in the MVP.',
+        }),
+  });
+
+  let identityOk = true;
+  let identityRemediation: string | undefined;
+  try {
+    validateIdentityAlias(input.source);
+  } catch (error) {
+    identityOk = false;
+    identityRemediation =
+      error instanceof Error
+        ? error.message
+        : 'Pass `--source <identity>` with a valid named Stellar CLI identity alias.';
+  }
+  checks.push({
+    label: 'Identity alias is valid',
+    passed: identityOk,
+    ...(identityOk
+      ? {}
+      : {
+          remediation: identityRemediation,
+        }),
+  });
+
+  const cargoOk = existsSync(resolve(projectRoot, 'Cargo.toml'));
+  checks.push({
+    label: 'Cargo.toml workspace present',
+    passed: cargoOk,
+    ...(cargoOk
+      ? {}
+      : {
+          remediation:
+            'No Cargo.toml workspace was found. Run deploy from a generated Stellar smart-contract project root containing Cargo.toml.',
+        }),
+  });
+
+  let artifactOk = false;
+  let artifactRemediation: string | undefined;
+  if (cargoOk) {
+    try {
+      validateGeneratedWasmArtifact(projectRoot);
+      artifactOk = true;
+    } catch (error) {
+      artifactOk = false;
+      artifactRemediation =
+        error instanceof Error
+          ? error.message
+          : 'Run `stellar contract build` before deploying.';
+    }
+  }
+  checks.push({
+    label: 'Generated Wasm artifact is ready',
+    passed: artifactOk,
+    ...(artifactOk
+      ? {}
+      : {
+          remediation:
+            artifactRemediation ??
+            'Run `stellar contract build` before deploying.',
+        }),
+  });
+
+  return {
+    passed: checks.every((check) => check.passed),
+    checks,
+  };
+}
+
 function readStat(path: string): Stats | undefined {
   try {
     return lstatSync(path);

@@ -333,6 +333,10 @@ describe('critical path: deployment security', () => {
       cwd: () => '/workspace',
       output: createCapturedTerminalOutput().output,
       resolveConfig: () => ({ network: 'testnet', identity: 'ci-deployer' }),
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
       resolvePlan: () => [
         {
           label: 'stellar:deploy',
