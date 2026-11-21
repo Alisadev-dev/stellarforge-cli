@@ -10,11 +10,16 @@ import {
   validateProjectInput,
 } from '../generator/validation.js';
 import { TerminalOutput } from '../output/terminal.js';
+import {
+  createCancellationController,
+  type CancellationController,
+} from '../errors/boundary.js';
 
 export interface NewCommandOptions {
   readonly services?: ProjectGeneratorServices;
   readonly output?: TerminalOutput;
   readonly cwd?: () => string;
+  readonly cancellation?: CancellationController;
 }
 
 interface NewCommandFlags {
@@ -45,6 +50,7 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
   const services = options.services ?? createDefaultServices();
   const output = options.output ?? new TerminalOutput();
   const cwd = options.cwd ?? process.cwd;
+  const cancellation = options.cancellation ?? createCancellationController();
 
   return new Command('new')
     .description('Create a new StellarForge project.')
@@ -62,6 +68,7 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
 
       process.on('SIGINT', onSigint);
 
+      const signal = cancellation.begin();
       try {
         const result = orchestrateProjectGeneration(
           {
@@ -80,6 +87,11 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
 
         if (cancelled) {
           throw new ScaffoldingCancelledCliError();
+          },
+        );
+
+        if (signal.aborted) {
+          throw signal.reason;
         }
 
         if ('dryRun' in result) {
@@ -105,6 +117,7 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
         );
       } finally {
         process.removeListener('SIGINT', onSigint);
+        cancellation.end();
       }
     });
 }
