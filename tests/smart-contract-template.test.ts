@@ -52,6 +52,9 @@ describe('Smart Contract template', () => {
           existsSync(join(projectRoot, 'contracts', 'hello', 'src', 'test.rs')),
         ).toBe(true);
         expect(rootManifest).toContain('soroban-sdk = "26"');
+        expect(rootManifest).toContain('[workspace.package]');
+        expect(rootManifest).toContain('edition = "2021"');
+        expect(rootManifest).toContain('rust-version = "1.84.0"');
         expect(rootManifest).not.toContain('wasm32v1-none');
         expect(contractManifest).toContain(
           'name = "stellarforge-starter-contract"',
@@ -70,6 +73,10 @@ describe('Smart Contract template', () => {
         expect(readme).toContain('stellar contract deploy');
         expect(readme).toContain('stellar contract invoke');
         expect(readme).toContain('--network testnet');
+        expect(readme).toContain('Rust 1.84.0');
+        expect(readme).toContain('Stellar CLI >=27.1.0');
+        expect(readme).toContain('wasm32v1-none');
+        expect(readme).toContain('soroban-sdk 26.x');
         expect(readme).not.toMatch(/S[A-Z0-9]{55}/);
         expect(captured.stdoutText()).toContain(
           'Created demo.contract from smart-contract',

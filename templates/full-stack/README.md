@@ -43,6 +43,8 @@ npm run start:backend
 
 The backend exposes `GET /health` and static frontend assets (such as `GET /app.js`) on `127.0.0.1:3000` by default. Set `BACKEND_PORT` to override the port. The frontend has no server and no port variable at all.
 
+On `SIGINT` or `SIGTERM`, the backend stops accepting new connections, drains active requests for up to five seconds, and then closes remaining connections so a stuck request cannot keep the process alive. Repeated signals do not start a second shutdown.
+
 If the configured port is already in use, startup fails with a raw Node error such as:
 
 ```text
